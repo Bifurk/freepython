@@ -5,6 +5,30 @@ import pandas as pd
 import re
 import csv
 
+def process_input_data(ON, Obec, input_list):
+    output_list = []
+
+    for sub_list in input_list:
+        if len(sub_list) == 1:
+            output_list.append([ON, Obec, sub_list[0]])
+        else:
+            # Check if the second part of the values are equal
+            second_parts = [x[1:] for x in sub_list]
+            if len(set(second_parts)) != 1:
+                output_list.append([ON, Obec] + sub_list)
+            else:
+                # Check if the first characters are consecutive
+                first_chars = [x[0] for x in sub_list]
+                first_chars.sort()
+                if ord(first_chars[-1]) - ord(first_chars[0]) != len(first_chars) - 1:
+                    output_list.append([ON, Obec] + sub_list)
+                else:
+                    # Combine the first and last characters
+                    first = sub_list[0][0]
+                    last = sub_list[-1][0]
+                    output_list.append([ON, Obec, f"{first}-{last}{second_parts[0]}"])
+
+    return output_list
 
 # Set the working directory
 os.chdir("C:\\i\\PfArt\\python_sit\\Test")
@@ -56,8 +80,12 @@ input_lists = []
 for line in lines[1:]:
     parts = line.strip().split(';')
     input_list = parts[2].split(',')
-    input_list.sort(key=lambda x: (x.isdigit(), x))
-    input_lists.append(input_list)
+    sorted_list = sorted(input_list, key=lambda x: (x[0], int(x[1:])))
+    input_lists.append(sorted_list)
+
+
+
+    output_str = ",".join(sorted_list)
 
 # Process each input list and generate the output
 output_lists = []
@@ -108,14 +136,55 @@ output_lists = sorted(output_lists)
 # Write the final output to a CSV file
 with open('PfArt_index.csv', 'w', newline='', encoding='utf-8') as f:
     writer = csv.writer(f)
-    writer.writerow(['ON', 'Obec', 'index'])
+    writer.writerow(['ON', 'Obec', 'Index'])
     for i, (obec, on, index) in enumerate(output_lists):
         writer.writerow([on, obec, index])
+
+# Indexing based on row character
+input_list = []
+with open('PfArt_index.csv', 'r', encoding='utf-8') as f:
+    reader = csv.reader(f)
+    next(reader)  # Skip the header row
+    for row in reader:
+        ON, Obec, Index = row
+        input_list.append((ON, Obec, Index.split()))
+
+output_list = []
+for ON, Obec, sub_list in input_list:
+    output_list.extend(process_input_data(ON, Obec, [sub_list]))
+
+# Write output to CSV file
+with open('PfArt_index_final.csv', 'w', encoding='utf-8', newline='') as f:
+    writer = csv.writer(f, delimiter=',')
+    writer.writerow(['ON', 'Obec', 'Index'])
+    for row in output_list:
+        writer.writerow(row)
+
+# *********************** replacing semicolon in Index field
+
+with open('PfArt_index_final.csv', 'r', newline='',encoding='utf-8') as file_in, open('output.csv', 'w', newline='',encoding='utf-8') as file_out:
+    reader = csv.reader(file_in, delimiter=',')
+    writer = csv.writer(file_out, delimiter=',')
+
+    # Write the header row as is
+    header = next(reader)
+    writer.writerow(header)
+
+    # Process each data row
+    for row in reader:
+        # Replace all semicolons except the first two with spaces
+        new_row = [row[0], row[1], row[2].replace(',', ' ', 2)]
+        writer.writerow(new_row)
+
+# Rename the output file to the original filename
+os.replace('output.csv', 'PfArt_index_final.csv')
+
+# ***********************
 
 #  Process the data further to add brackets around Obec column and exclude main city name from the list
 
 output_lists = []
-with open('PfArt_index.csv', 'r', encoding='utf-8') as f:
+with open('PfArt_index_final.csv', 'r', encoding='utf-8') as f:
     reader = csv.reader(f)
     next(reader)  # Skip the header row
     for on, obec, index in reader:
@@ -126,13 +195,14 @@ with open('PfArt_index.csv', 'r', encoding='utf-8') as f:
         index = index.replace(' ', ',')
         output_lists.append((on, obec, index))
 
-# Write the final output to a CSV file
+# Write the final output to a CSV file with Tab between Obec Index column
 output_filename = f"PfArt_index_{city}.csv"
 with open(output_filename, 'w', newline='', encoding='utf-8') as f:
-    writer = csv.writer(f, delimiter=' ')
+    writer = csv.writer(f, delimiter='\t')
     writer.writerow(['ON', 'Obec', 'index'])
     for on, obec, index in output_lists:
-        writer.writerow([on, obec, index])
+        writer.writerow([f"{on} {obec}", index])
+
 
 # Remove double quotes from the output file
 with open(output_filename, 'r', encoding='utf-8') as f:
