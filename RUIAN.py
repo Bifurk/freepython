@@ -15,6 +15,7 @@ import shutil
 from bs4 import BeautifulSoup
 import arcpy
 from arcpy import env
+import datetime
 
 
 # Extract automaticaly URL link from web site leading to the zip file with csv files
@@ -114,7 +115,7 @@ with open('C:/g/convert/original/new.csv','r',encoding='utf-8') as handle:
             adresy['AddressTyp'].append("Building")
 
         except:
-            print("Error in new.csv file. Please check printed records.")
+            print("Error in new.csv file. Check the file!!!!!")
             
 
 
@@ -227,23 +228,64 @@ arcpy.management.DeleteField(reordered_fc, 'ON')
 # Delete the original 'adresyjtsk_joined' feature class
 arcpy.management.Delete(out_join)
 
+# get the current date and time
+now = datetime.datetime.now()
+
+# calculate the last day of the previous month
+if now.month == 1:
+    # if current month is January, go back to December of the previous year
+    last_month = datetime.date(now.year - 1, 12, 1)
+else:
+    # otherwise, just go back one month
+    last_month = datetime.date(now.year, now.month - 1, 1)
+last_day_last_month = last_month.replace(day=28) + datetime.timedelta(days=4)
+last_day_last_month = last_day_last_month.replace(day=1) - datetime.timedelta(days=1)
+
+# format the date as YYYYMMDD
+export_datum = last_day_last_month.strftime('%Y%m%d')
+
 # arcpy reproject feature class adresy from geodatabase into crs 4326 using S_JTSK_To_WGS_1984_1 transformation
 out_coor_system = arcpy.SpatialReference(4326)
-arcpy.Project_management("CZE_RUIAN.gdb/adresy", "CZE_RUIAN.gdb/adresy_20230228", out_coor_system, transform_method="S_JTSK_To_WGS_1984_1")
+arcpy.Project_management("CZE_RUIAN.gdb/adresy", f"CZE_RUIAN.gdb/adresy_{export_datum}", out_coor_system, transform_method="S_JTSK_To_WGS_1984_1")
 
 
 # delete feature class adresy
 arcpy.Delete_management("CZE_RUIAN.gdb/adresy")
-arcpy.DeleteField_management("CZE_RUIAN.gdb/adresy_20230228", "X")
-arcpy.DeleteField_management("CZE_RUIAN.gdb/adresy_20230228", "Y")
-arcpy.AddField_management("CZE_RUIAN.gdb/adresy_20230228", "Longitude", "DOUBLE")
-arcpy.AddField_management("CZE_RUIAN.gdb/adresy_20230228", "Latitude", "DOUBLE")
-arcpy.CalculateField_management("CZE_RUIAN.gdb/adresy_20230228", "Longitude", "!SHAPE.CENTROID.X!", "PYTHON_9.3")
-arcpy.CalculateField_management("CZE_RUIAN.gdb/adresy_20230228", "Latitude", "!SHAPE.CENTROID.Y!", "PYTHON_9.3")
+arcpy.DeleteField_management(f"CZE_RUIAN.gdb/adresy_{export_datum}", "X")
+arcpy.DeleteField_management(f"CZE_RUIAN.gdb/adresy_{export_datum}", "Y")
+arcpy.AddField_management(f"CZE_RUIAN.gdb/adresy_{export_datum}", "Longitude", "DOUBLE")
+arcpy.AddField_management(f"CZE_RUIAN.gdb/adresy_{export_datum}", "Latitude", "DOUBLE")
+arcpy.CalculateField_management(f"CZE_RUIAN.gdb/adresy_{export_datum}", "Longitude", "!SHAPE.CENTROID.X!", "PYTHON_9.3")
+arcpy.CalculateField_management(f"CZE_RUIAN.gdb/adresy_{export_datum}", "Latitude", "!SHAPE.CENTROID.Y!", "PYTHON_9.3")
 
 remove_file = "C:/g/convert/original/adresyjtsk.shp"
 os.remove(remove_file)
 
+# This part of the code updates the 'Streetname' field in a feature class in an ArcGIS geodatabase with values from a reference CSV file,
+# using an update cursor and a dictionary to match and update the values.
+
+
+
+# set workspace and input feature class
+arcpy.env.workspace = r'C:\g\convert\original\CZE_RUIAN.gdb'
+feature_class = f'adresy_{export_datum}'
+
+# read reference csv file into a dictionary
+csv_path = r'C:\c\APT\2023_Import\CZE\Prevodnik\cze_streetname_list_UTF_8.csv'
+ref_dict = {}
+with open(csv_path, 'r', encoding='utf-8') as csv_file:
+    reader = csv.reader(csv_file)
+    next(reader)  # skip header
+    for row in reader:
+        ref_dict [row[1]] = row[3]
+
+
+# update feature class with values from csv file
+with arcpy.da.UpdateCursor(feature_class, ['Streetname']) as cursor:
+    for row in cursor:
+        if row[0] and row[0].upper() in ref_dict:
+            row[0] = ref_dict[row[0].upper()]
+            cursor.updateRow(row)
 
 print(f'Celkem převedeno {count} APTs')
 
