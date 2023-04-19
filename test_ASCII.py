@@ -46,5 +46,5 @@ for i in range(num_rows):
 
 # sloupce nejsou správně zarovnány kvůli netisknutelných znaků. Vzhledem k tomu, že konzola nemusí netisknutelné znaky zpracovávat správně, je obtížné zachovat zarovnání sloupců při tisku.
 # paráda, že jsi to zkusil, ale v tomhle případě bych to nechal na jednom řádku, protože to je jenom jedna funkce, která se volá v cyklu.
-# změna
+# ahoj
 
